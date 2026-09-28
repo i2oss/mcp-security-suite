@@ -1,0 +1,73 @@
+name: MCP security scan
+
+# Reusable workflow: another repo calls this to run the full suite (layer 1
+# repo scanners + layer 2 protocol fuzzing) against its own MCP server.
+#
+#   jobs:
+#     scan:
+#       uses: i2oss/mcp-security-suite/.github/workflows/scan.yml@v1
+#       with:
+#         config: mcp-security.toml
+on:
+  workflow_call:
+    inputs:
+      config:
+        description: "Path to mcp-security.toml in the calling repo."
+        type: string
+        default: "mcp-security.toml"
+      install-command:
+        description: "Command that installs the caller's MCP server into the uv venv."
+        type: string
+        default: "uv sync --all-extras --dev"
+      suite-ref:
+        description: "Ref/tag of mcp-security-suite to install."
+        type: string
+        default: "v1"
+      python-version:
+        type: string
+        default: "3.11"
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0            # gitleaks scans history
+
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Set up Python ${{ inputs.python-version }}
+        run: uv python install ${{ inputs.python-version }}
+
+      - name: Install the MCP server under test
+        run: ${{ inputs.install-command }}
+
+      - name: Install the security suite and scanners
+        run: |
+          uv pip install \
+            "mcp-security-suite @ git+https://github.com/i2oss/mcp-security-suite@${{ inputs.suite-ref }}" \
+            bandit pip-audit
+
+      - name: Install gitleaks (best-effort; suite degrades gracefully if absent)
+        run: |
+          VERSION=8.21.2
+          URL="https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz"
+          if curl -fsSL "$URL" | tar -xz -C /tmp gitleaks 2>/dev/null; then
+            sudo mv /tmp/gitleaks /usr/local/bin/ && gitleaks version
+          else
+            echo "gitleaks install skipped; layer 1 will report it as not run."
+          fi
+
+      - name: Run the security scan (gates on findings >= config fail_on)
+        run: uv run mcp-security-suite scan --config "${{ inputs.config }}" --repo . --json scan-report.json
+
+      - name: Upload scan report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcp-security-scan
+          path: scan-report.json
+          if-no-files-found: ignore

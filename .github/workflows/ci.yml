@@ -1,0 +1,28 @@
+name: CI
+
+# The suite's own tests: proves the harness still catches the deliberately
+# vulnerable demo server and passes the safe one. A change that weakens
+# detection fails here.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * 1"   # weekly, catches dependency drift
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+      - name: Run harness self-tests
+        run: uv run --with mcp --with pytest python -m pytest tests/ -v
