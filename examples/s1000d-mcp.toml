@@ -1,0 +1,27 @@
+# Example config for scanning i2oss/s1000d-mcp.
+# Copy to the target repo as `mcp-security.toml` and adjust.
+
+[server]
+command = "s1000d-mcp"          # the installed console script (or: python -m s1000d_mcp.server)
+args = []
+timeout = 8.0
+
+[scan]
+# suggest_fix needs a live API key; ping is a trivial health check.
+skip_tools = ["suggest_fix", "ping"]
+
+# Give the skeleton tool valid required args so probes reach its real code.
+[scan.tool_arg_overrides.generate_data_module_skeleton]
+tech_name = "APU"
+info_name = "Remove"
+dmc = { modelIdentCode = "MERM100", systemDiffCode = "A", systemCode = "049", subSystemCode = "0", subSubSystemCode = "0", assyCode = "00", disassyCode = "00", disassyCodeVariant = "A", infoCode = "040", infoCodeVariant = "A", itemLocationCode = "A" }
+
+[gate]
+fail_on = "high"                # fail CI on any un-waived high/critical finding
+
+# The tools echo the caller-supplied path in status/error fields. Reviewed and
+# accepted as low risk (the caller already supplied the value); reported but
+# not gated.
+[[waivers]]
+category = "output-injection"
+reason = "Tools reflect the caller's own input path in status fields; low risk, accepted 2026-09."

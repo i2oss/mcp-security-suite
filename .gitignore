@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.venv/
+.venv_real/
+*.egg-info/
+.pytest_cache/
+.gitleaks-report.json
