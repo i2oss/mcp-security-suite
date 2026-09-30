@@ -39,14 +39,30 @@ def _tool_schema(tool: Any) -> dict[str, Any]:
     return getattr(tool, "input_schema", None) or getattr(tool, "inputSchema", None) or {}
 
 
+def _is_string_param(spec: dict[str, Any]) -> bool:
+    """True only for parameters a string payload actually belongs in.
+
+    A plain ``string``, or a nullable/union that includes ``string`` but no
+    composite type (so ``str | None`` counts, ``list[dict] | None`` does not).
+    Feeding a string to a list/object/int parameter only triggers the
+    server's own argument validation -- whose error text echoes the input --
+    which used to masquerade as a finding.
+    """
+    t = spec.get("type")
+    if t == "string":
+        return True
+    if t is not None:
+        return False  # explicitly integer / array / object / boolean / number
+    options = spec.get("anyOf") or spec.get("oneOf") or []
+    types = {o.get("type") for o in options if isinstance(o, dict)}
+    if "array" in types or "object" in types:
+        return False
+    return "string" in types
+
+
 def _string_params(schema: dict[str, Any]) -> list[str]:
     props = (schema or {}).get("properties", {}) or {}
-    out = []
-    for name, spec in props.items():
-        t = spec.get("type")
-        if t in (None, "string"):
-            out.append(name)
-    return out
+    return [name for name, spec in props.items() if _is_string_param(spec)]
 
 
 def _default_for(spec: dict[str, Any]) -> Any:

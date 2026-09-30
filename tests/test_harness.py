@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 from mcp_security_suite.config import Config, apply_waivers
-from mcp_security_suite.harness import run_scan
+from mcp_security_suite.harness import _string_params, run_scan
 from mcp_security_suite.report import Finding, ScanResult
 
 DEMO = Path(__file__).resolve().parents[1] / "demo"
@@ -64,6 +64,25 @@ def test_config_requires_a_reason_for_waivers():
             "server": {"command": "python"},
             "waivers": [{"category": "dos"}],  # no reason
         })
+
+
+def test_only_genuine_string_params_are_fuzzed():
+    # A string payload belongs only in string (or nullable-string) params.
+    # Feeding one to a list/object/int param just triggers the server's own
+    # argument validation, whose error echoes the input and used to look like
+    # a finding (regression from onboarding a pydantic-typed server).
+    schema = {
+        "properties": {
+            "keyword": {"type": "string"},
+            "opt_keyword": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+            "project_id": {"type": "integer"},
+            "field_ids": {"anyOf": [{"type": "array"}, {"type": "null"}]},
+            "field_values": {"anyOf": [{"type": "array"}, {"type": "null"}]},
+            "condition": {"anyOf": [{"type": "object"}, {"type": "null"}]},
+            "flag": {"type": "boolean"},
+        }
+    }
+    assert _string_params(schema) == ["keyword", "opt_keyword"]
 
 
 def test_config_roundtrips_server_and_gate():
