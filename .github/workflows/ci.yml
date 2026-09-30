@@ -22,6 +22,10 @@ jobs:
       - uses: astral-sh/setup-uv@v3
         with:
           enable-cache: true
+          # Cache against pyproject.toml so a repo without a committed uv.lock
+          # still works -- the suite must onboard any MCP server, not just
+          # ones that check in a lockfile.
+          cache-dependency-glob: "**/pyproject.toml"
       - name: Set up Python ${{ matrix.python-version }}
         run: uv python install ${{ matrix.python-version }}
       - name: Run harness self-tests
